@@ -12,19 +12,20 @@ A [Pi Coding Agent](https://pi.dev/) extension that connects to multiple [llama.
 - **Image capabilities detection** — detects multimodal models automatically
 - **Flexible configuration** — via `llamaSettings`, environment variable, or legacy `llamaServerUrl`
 - **Auth support** — login into servers secured with an API key
-- **Basic llama-swap support** — auto-detects and provides basic integration with [llama-swap](https://github.com/mostlygeek/llama-swap) gateways
+- **Llama-swap support** — auto-detects and provides integration with [llama-swap](https://github.com/mostlygeek/llama-swap) gateways
 - **Thinking budget support** — configurable token budgets for model reasoning/thinking, mapped to Pi's thinking levels
 - **Real-time progress tracking** — live loading progress via SSE (falls back to polling)
 
 ### Status Indicators
 
-| Icon | Status   | Description                       |
-| ---- | -------- | --------------------------------- |
-| 🟢   | Loaded   | Model is active and ready to use  |
-| 🟡   | Loading  | Model is currently being loaded   |
-| 🔴   | Failed   | Model failed to load              |
-| 🔵   | Sleeping | Model is available, but inactive  |
-| ⚪   | Unloaded | Model is not loaded on the server |
+| Icon | Status    | Description                       |
+| ---- | --------- | --------------------------------- |
+| 🟢   | Loaded    | Model is active and ready to use  |
+| 🟡   | Loading   | Model is currently being loaded   |
+| 🔴   | Failed    | Model failed to load              |
+| 🔵   | Sleeping  | Model is available, but inactive  |
+| ⚪   | Unloaded  | Model is not loaded on the server |
+| 🟣   | Unmanaged | Remote peer model (llama-swap)    |
 
 > **Note**: The `Sleeping` status only shows when you start your server with `llama-server --sleep-idle-seconds <n> ...`.
 > This is a **llama.cpp server flag** that tells the server to put idle models to sleep after `n` seconds.
@@ -282,7 +283,9 @@ llama-server --model path/to/model.gguf ...
 
 - For llama-swap mode, point the extension at a running [llama-swap](https://github.com/mostlygeek/llama-swap) instance instead of a raw llama.cpp server. The extension auto-detects this mode via the `src` field in the server props response.
 
-> **Note:** llama-swap support is basic — only model listing, status, load/unload, and capability detection are implemented.
+> **Note:** llama-swap support includes peer models — remote models from other llama-swap instances or bare llama.cpp servers. Peer models show with a 🟣 (unmanaged) status and only support **Switch** (no load/unload), since llama-swap does not manage their lifecycle and does not expose a way to control it.
+
+> **Note:** Context size for peer models falls back to the override or the default (128,000 tokens), since llama-swap does not expose peer model metadata. Add a `contextSize` override if you need a specific value.
 
 The extension determines the context size as follows:
 
