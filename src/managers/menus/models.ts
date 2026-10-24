@@ -180,6 +180,7 @@ export class ModelsMenu {
           ? [Action.SWITCH, Action.UNLOAD, ...base]
           : [Action.SWITCH, ...base],
       [Status.UNLOADED]: [Action.LOAD_AND_SWITCH, Action.LOAD, ...base],
+      [Status.UNMANAGED]: [Action.SWITCH, ...base],
     };
 
     const status = await model.getStatus();

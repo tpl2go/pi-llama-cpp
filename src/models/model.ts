@@ -23,6 +23,7 @@ export class Model {
     [Status.FAILED]: "🔴",
     [Status.SLEEPING]: "🔵",
     [Status.UNLOADED]: "⚪",
+    [Status.UNMANAGED]: "🟣",
   };
 
   /** Unique identifier of the model. */
