@@ -16,11 +16,15 @@ export class LlamaSwapServer extends Server {
 
   /**
    * Resolves status from `/v1/models` status field.
+   * Peer models are UNMANAGED since llama-swap
+   * does not manage their lifecycle.
    *
    * @param modelId — The model ID.
    * @returns The resolved status.
    */
   override async getModelStatus(modelId: string): Promise<Status> {
+    if (await this.isPeerModel(modelId)) return Status.UNMANAGED;
+
     try {
       const { data } = await this.fetchModels();
       const model = data?.find((m) => m.id === modelId);
@@ -70,10 +74,13 @@ export class LlamaSwapServer extends Server {
   /**
    * Loads a model via llama-swap's upstream endpoint, then polls
    * until loaded or timeout.
+   * Peer models are not managed by llama-swap so the call is skipped.
    *
    * @param modelId — The model ID to load.
    */
   override async loadModel(modelId: string): Promise<void> {
+    if (await this.isPeerModel(modelId)) return;
+
     try {
       await this.apiClient.get<void>(
         `/upstream/${modelId}`,
@@ -88,10 +95,13 @@ export class LlamaSwapServer extends Server {
 
   /**
    * Unloads a model via llama-swap's API, then polls until unloaded.
+   * Peer models are not managed by llama-swap so the call is skipped.
    *
    * @param modelId — The model ID to unload.
    */
   override async unloadModel(modelId: string): Promise<void> {
+    if (await this.isPeerModel(modelId)) return;
+
     await this.apiClient.post<void>(
       `/api/models/unload/${modelId}`,
       undefined,
@@ -99,6 +109,22 @@ export class LlamaSwapServer extends Server {
       RequestPolicy.Raw,
     );
     await this.pollModelStatus(modelId, Status.UNLOADED);
+  }
+
+  /**
+   * Checks whether a model is a peer (remote, not managed by llama-swap).
+   *
+   * @param modelId — The model ID.
+   * @returns True if the model is a peer.
+   */
+  private async isPeerModel(modelId: string): Promise<boolean> {
+    try {
+      const { data } = await this.fetchModels();
+      const model = data?.find((m) => m.id === modelId);
+      return model?.meta?.llamaswap?.type === "peer";
+    } catch {
+      return false;
+    }
   }
 
   /**

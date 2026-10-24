@@ -35,6 +35,22 @@ const createServer = (overrides = {}) => {
 
 describe("LlamaSwapServer", () => {
   describe("getModelStatus", () => {
+    it("should return UNMANAGED for peer models", async () => {
+      mockRpc.mockResolvedValueOnce({
+        data: [
+          {
+            id: "flashfire/fim",
+            meta: { llamaswap: { type: "peer" } },
+          },
+        ],
+      });
+
+      const server = createServer();
+      const status = await server.getModelStatus("flashfire/fim");
+
+      expect(status).toBe(Status.UNMANAGED);
+    });
+
     it("should return LOADED when status.value is 'loaded'", async () => {
       mockRpc.mockResolvedValueOnce({
         data: [
@@ -247,8 +263,25 @@ describe("LlamaSwapServer", () => {
   });
 
   describe("loadModel", () => {
+    it("should skip for peer models", async () => {
+      mockRpc.mockResolvedValueOnce({
+        data: [
+          {
+            id: "flashfire/fim",
+            meta: { llamaswap: { type: "peer" } },
+          },
+        ],
+      });
+
+      const server = createServer();
+      await server.loadModel("flashfire/fim");
+
+      expect(mockRpc).not.toHaveBeenCalledWith("/upstream/flashfire/fim");
+    });
+
     it("should call upstream endpoint then poll", async () => {
       const server = createServer();
+      mockRpc.mockResolvedValueOnce({ data: [] }); // isPeerModel
       mockRpc.mockResolvedValueOnce({});
       server.getModelStatus = vi.fn().mockResolvedValue(Status.LOADED);
       server.loadModel = LlamaSwapServer.prototype.loadModel;
@@ -267,8 +300,27 @@ describe("LlamaSwapServer", () => {
   });
 
   describe("unloadModel", () => {
+    it("should skip for peer models", async () => {
+      mockRpc.mockResolvedValueOnce({
+        data: [
+          {
+            id: "flashfire/fim",
+            meta: { llamaswap: { type: "peer" } },
+          },
+        ],
+      });
+
+      const server = createServer();
+      await server.unloadModel("flashfire/fim");
+
+      expect(mockRpc).not.toHaveBeenCalledWith(
+        "/api/models/unload/flashfire/fim",
+      );
+    });
+
     it("should call unload endpoint then poll", async () => {
       const server = createServer();
+      mockRpc.mockResolvedValueOnce({ data: [] }); // isPeerModel
       mockRpc.mockResolvedValueOnce({});
       server.getModelStatus = vi.fn().mockResolvedValue(Status.UNLOADED);
       server.unloadModel = LlamaSwapServer.prototype.unloadModel;
