@@ -325,7 +325,6 @@ describe("ServerManager", () => {
         "llama-server=http://127.0.0.1:8081",
         expect.objectContaining({ baseUrl: "http://127.0.0.1:8081/v1" }),
       );
-      expect(manager.getFailedUrls()).toContain("http://127.0.0.1:9931");
       expect(manager.getWarnings()).toHaveLength(1);
 
       // Phase 2: /models without timeout → both register
@@ -374,8 +373,10 @@ describe("ServerManager", () => {
         "llama-server=http://127.0.0.1:8081",
         expect.objectContaining({ baseUrl: "http://127.0.0.1:8081/v1" }),
       );
-      expect(manager.getFailedUrls()).toContain("http://127.0.0.1:9931");
-      expect(manager.getWarnings()).toHaveLength(1);
+      expect(manager.getErrors()).toContain(
+        "[pi-llama-cpp]\nServer at 'http://127.0.0.1:9931' is unreachable.",
+      );
+      expect(manager.getWarnings()).toHaveLength(0);
 
       // Phase 2: /models without timeout → both register
       vi.mocked(mockPi.registerProvider).mockClear();
@@ -391,7 +392,7 @@ describe("ServerManager", () => {
   });
 
   describe("registerProvider error handling", () => {
-    it("should add the URL to failedUrls when initialize throws a non-auth error", async () => {
+    it("should add the URL to errors when initialize throws a non-auth error", async () => {
       const server = createMockServer({
         options: { baseUrl: "http://127.0.0.1:9931" },
       });
@@ -412,7 +413,9 @@ describe("ServerManager", () => {
       await manager.update(mockPi);
 
       expect(mockPi.registerProvider).not.toHaveBeenCalled();
-      expect(manager.getFailedUrls()).toContain("http://127.0.0.1:9931");
+      expect(manager.getErrors()).toContain(
+        "[pi-llama-cpp]\nServer at 'http://127.0.0.1:9931' is unreachable.",
+      );
     });
 
     it("should remove a server from the list when registerProvider throws", async () => {
@@ -436,7 +439,9 @@ describe("ServerManager", () => {
       await manager.update(mockPi);
 
       expect(manager.servers).toHaveLength(0);
-      expect(manager.getFailedUrls()).toContain("http://127.0.0.1:9931");
+      expect(manager.getErrors()).toContain(
+        "[pi-llama-cpp]\nServer at 'http://127.0.0.1:9931' is unreachable.",
+      );
     });
   });
 
@@ -454,7 +459,9 @@ describe("ServerManager", () => {
 
       await manager.update(mockPi);
 
-      expect(manager.getFailedUrls()).not.toContain("http://127.0.0.1:9931");
+      expect(manager.getErrors()).not.toContain(
+        "Server at 'http://127.0.0.1:9931' is unreachable.",
+      );
       expect(mockPi.registerProvider).toHaveBeenCalledWith(
         "llama-server=http://127.0.0.1:9931",
         expect.objectContaining({

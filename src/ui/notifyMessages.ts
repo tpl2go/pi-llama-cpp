@@ -8,6 +8,14 @@ import { join } from "node:path";
 export const warnUser = (...lines: string[]): string =>
   ["[pi-llama-cpp]", ...lines].join("\n");
 
+/**
+ * Extracts a human-readable message from an unknown error value.
+ *
+ * @param err The error value to extract a message from.
+ */
+export const errorMessage = (err: unknown): string =>
+  err instanceof Error ? err.message : String(err);
+
 // -- Warning messages --------------------------------------------------------
 
 /**
@@ -43,14 +51,6 @@ export const timeoutMessage = (baseUrl: string, timeout: number): string =>
   );
 
 /**
- * Generates a warning message for a server that is unreachable.
- *
- * @param baseUrl The unreachable server URL.
- */
-export const unreachableMessage = (baseUrl: string): string =>
-  warnUser(`Server at '${baseUrl}' is unreachable.`);
-
-/**
  * Generates a warning message when a session changes during a model load.
  *
  * @param modelName The name of the model that was loading.
@@ -79,23 +79,13 @@ export const duplicateUrlWarning = (url: string): string =>
 export const tuiRequired = (label: string): string =>
   warnUser(`/models ${label} requires an interactive session (TUI)`);
 
-// -- Error messages ----------------------------------------------------------
-
 /**
- * Extracts a human-readable message from an unknown error value.
+ * Generates a warning message for a provider that failed to initialize.
  *
- * @param err The error value to extract a message from.
- */
-export const errorMessage = (err: unknown): string =>
-  err instanceof Error ? err.message : String(err);
-
-/**
- * Generates an error message for an unreachable provider.
- *
- * @param url The unreachable server URL.
+ * @param url The provider URL.
  */
 export const providerUnreachable = (url: string): string =>
-  `${PROVIDER_NAME} unreachable at ${url}`;
+  warnUser(`Server at '${url}' is unreachable.`);
 
 // -- Info messages -----------------------------------------------------------
 

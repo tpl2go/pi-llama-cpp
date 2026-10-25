@@ -39,6 +39,8 @@ export default async function (pi: ExtensionAPI) {
   // Events
   pi.on("session_start", (event: SessionStartEvent, ctx: ExtensionContext) => {
     if (event.reason !== "startup") return;
+    for (const error of serverManager.getErrors())
+      ctx.ui.notify(error, "error");
     for (const warning of serverManager.getWarnings())
       ctx.ui.notify(warning, "warning");
   });

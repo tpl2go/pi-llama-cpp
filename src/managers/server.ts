@@ -11,7 +11,7 @@ import {
   authRequiredMessage,
   duplicateUrlWarning,
   timeoutMessage,
-  unreachableMessage,
+  providerUnreachable,
 } from "../ui/notifyMessages";
 import { ServerFactory } from "../servers/serverFactory";
 import type { SettingsService } from "../settings/settings";
@@ -26,7 +26,7 @@ export class ServerManager {
     private readonly settings: SettingsService,
     private readonly serverFactory: ServerFactory,
   ) {}
-  private readonly failedUrls: string[] = [];
+  private readonly errors: string[] = [];
   private readonly warnings: string[] = [];
   private readonly serverList: Server[] = [];
 
@@ -58,7 +58,7 @@ export class ServerManager {
    * @param timeout (Optional) Timeout before assuming server has failed
    */
   async update(pi: ExtensionAPI, timeout?: number) {
-    this.failedUrls.length = 0;
+    this.errors.length = 0;
     this.warnings.length = 0;
 
     // Snapshot the old list before replacing it — the unregister loop
@@ -98,10 +98,13 @@ export class ServerManager {
   }
 
   /**
-   * Returns URLs of servers that failed to initialize.
+   * Returns errors collected during initialization.
    */
-  getFailedUrls(): readonly string[] {
-    return [...this.failedUrls];
+  getErrors(): string[] {
+    const errors = [...this.errors];
+    this.errors.length = 0;
+
+    return errors;
   }
 
   /**
@@ -193,17 +196,15 @@ export class ServerManager {
         const { baseUrl } = options;
 
         if (status === ServerStatus.TIMEOUT) {
-          this.failedUrls.push(baseUrl);
           this.warnings.push(timeoutMessage(baseUrl, timeout!));
         } else if (status === ServerStatus.UNREACHABLE) {
-          this.failedUrls.push(baseUrl);
-          this.warnings.push(unreachableMessage(baseUrl));
+          this.errors.push(providerUnreachable(baseUrl));
         } else if (status === ServerStatus.UNAUTHORIZED) {
           // Register a provider with no models, so that it appears in `/login`.
           const providerId = ServerIds.resolve(baseUrl, options.customId);
           this.registerEmptyProvider(baseUrl, options, pi);
 
-          // We don't add to failedUrls here because the server is healthy.
+          // We don't add to errors here because the server is healthy.
           // We're just unauthorized to use it.
           seenIds.add(providerId);
           this.warnings.push(authRequiredMessage(baseUrl, providerId));
@@ -226,7 +227,7 @@ export class ServerManager {
       if (initResults[i].status === "fulfilled") {
         fresh.push(candidates[i]);
       } else {
-        this.failedUrls.push(candidates[i].baseUrl);
+        this.errors.push(providerUnreachable(candidates[i].baseUrl));
       }
     }
 

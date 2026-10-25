@@ -22,7 +22,7 @@ beforeEach(() => {
     servers: [],
     update: vi.fn(),
     getWarnings: vi.fn().mockReturnValue([]),
-    getFailedUrls: vi.fn().mockReturnValue([]),
+    getErrors: vi.fn().mockReturnValue([]),
   } as unknown as ServerManager;
   mockSettings = makeSettingsStub();
   mockEventManager = {
