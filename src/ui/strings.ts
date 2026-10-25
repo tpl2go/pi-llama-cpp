@@ -170,6 +170,9 @@ export const HINTS = {
   emptyServers: "  (a) add server · Esc done",
   /** Hint line when the override entry list is empty */
   emptyOverrideEntries: "  (a) add override · Esc back",
+  /** Hint line when the overrides list is empty (no servers) */
+  emptyOverrides:
+    "  Use '/models servers' to add a server and customize overrides · Esc done",
   /** Row description for a server in the overrides editor */
   overrideServerRow: "Enter: edit this server's override entries",
 } as const;

@@ -1,7 +1,7 @@
 import { getSettingsListTheme } from "@earendil-works/pi-coding-agent";
 import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import type { SettingItem } from "@earendil-works/pi-tui";
-import { SettingsList } from "@earendil-works/pi-tui";
+import { SettingsList, truncateToWidth } from "@earendil-works/pi-tui";
 import type { LlamaServer } from "../../interfaces/settings";
 import type { SettingsService } from "../../settings/settings";
 import { HINTS } from "../strings";
@@ -91,5 +91,25 @@ export class OverridesView extends View {
   /** Row summary for a server in the list: its override entry count. */
   private static entriesLabel(server: LlamaServer | undefined): string {
     return `${Object.keys(server?.overrides ?? {}).length} entries`;
+  }
+
+  /**
+   * Shows the "(a) add server" hint when the servers list is empty.
+   */
+  override render(width: number): string[] {
+    const lines = super.render(width);
+    if (this.options.servers.length === 0) {
+      const hint = truncateToWidth(
+        getSettingsListTheme().hint(HINTS.emptyOverrides),
+        width,
+      );
+      const last = lines[lines.length - 1];
+      if (last && last.includes("Esc to cancel")) {
+        lines[lines.length - 1] = hint;
+      } else {
+        lines.push(hint);
+      }
+    }
+    return lines;
   }
 }
