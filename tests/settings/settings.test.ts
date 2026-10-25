@@ -66,6 +66,25 @@ describe("API key resolution", () => {
     manager = SettingsService.create();
   });
 
+  it("should return env var when LLAMA_SERVER_API_KEY is set", () => {
+    process.env.LLAMA_SERVER_API_KEY = "env-api-key";
+
+    const result = manager.resolveApiKey(`llama-server=${defaultBaseUrl()}`);
+
+    expect(result).toEqual("env-api-key");
+    delete process.env.LLAMA_SERVER_API_KEY;
+  });
+
+  it("should prefer env var over stored credential", () => {
+    process.env.LLAMA_SERVER_API_KEY = "env-api-key";
+    mockReadStoredCredential.mockReturnValue({ key: "stored-key" });
+
+    const result = manager.resolveApiKey(`llama-server=${defaultBaseUrl()}`);
+
+    expect(result).toEqual("env-api-key");
+    delete process.env.LLAMA_SERVER_API_KEY;
+  });
+
   it("should return placeholder when credential is not found", () => {
     mockReadStoredCredential.mockReturnValue(undefined);
 

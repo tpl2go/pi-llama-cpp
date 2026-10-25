@@ -154,9 +154,18 @@ export class SettingsReader implements ServerSettingsResolver {
   }
 
   /**
-   * Resolves API key for the provider ID using Pi's stored credentials.
+   * Resolves API key: env var > Pi's stored credentials.
+   *
+   * When `LLAMA_SERVER_API_KEY` is set it takes precedence over any
+   * credential store entry so the user can bypass registration entirely.
+   *
+   * @param providerId - The provider ID the credential is stored under.
+   * @returns The resolved API key, or the placeholder on failure.
    */
   resolveApiKey(providerId: string): string {
+    const envKey = process.env.LLAMA_SERVER_API_KEY;
+    if (envKey) return envKey;
+
     return this.credentialResolver.resolveForProvider(providerId);
   }
 

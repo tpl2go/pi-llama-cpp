@@ -211,6 +211,12 @@ export LLAMA_SERVER_URL="http://127.0.0.1:9931"
 
 This is equivalent to defining a single server in `llamaSettings.servers` with just a URL.
 
+If the server requires authentication, also set `LLAMA_SERVER_API_KEY` to bypass the credential store.
+
+```bash
+export LLAMA_SERVER_API_KEY="sk-your-api-key"
+```
+
 ### Legacy configuration
 
 For a simpler setup, you can use the legacy `llamaServerUrl` key:
