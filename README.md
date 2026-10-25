@@ -16,34 +16,6 @@ A [Pi Coding Agent](https://pi.dev/) extension that connects to multiple [llama.
 - **Thinking budget support** — configurable token budgets for model reasoning/thinking, mapped to Pi's thinking levels
 - **Real-time progress tracking** — live loading progress via SSE (falls back to polling)
 
-### Status Indicators
-
-| Icon | Status    | Description                       |
-| ---- | --------- | --------------------------------- |
-| 🟢   | Loaded    | Model is active and ready to use  |
-| 🟡   | Loading   | Model is currently being loaded   |
-| 🔴   | Failed    | Model failed to load              |
-| 🔵   | Sleeping  | Model is available, but inactive  |
-| ⚪   | Unloaded  | Model is not loaded on the server |
-| 🟣   | Unmanaged | Remote peer model (llama-swap)    |
-
-> **Note**: The `Sleeping` status only shows when you start your server with `llama-server --sleep-idle-seconds <n> ...`.
-> This is a **llama.cpp server flag** that tells the server to put idle models to sleep after `n` seconds.
-> The model awakens automatically when you send a message.
-
-> **Note:** You can run your server with API authentication with `llama-server --api-key <your key> ...`.
-
-### Server Health Indicators
-
-When browsing servers via `/models servers`, each server URL is prefixed with a health indicator:
-
-| Icon | Status       | Description                                   |
-| ---- | ------------ | --------------------------------------------- |
-| 🟢   | Healthy      | Server responded successfully to health check |
-| 🟡   | Timeout      | Server health check timed out                 |
-| 🔴   | Unreachable  | Server could not be reached                   |
-| ⛔   | Unauthorized | Server requires an API key                    |
-
 ## Installation
 
 This package is a Pi extension. Install it with
@@ -57,6 +29,74 @@ or
 ```bash
 pi install https://github.com/gsanhueza/pi-llama-cpp
 ```
+
+## Status Indicators
+
+| Icon | Status    | Description                       |
+| ---- | --------- | --------------------------------- |
+| 🟢   | Loaded    | Model is active and ready to use  |
+| 🟡   | Loading   | Model is currently being loaded   |
+| 🔴   | Failed    | Model failed to load              |
+| 🔵   | Sleeping  | Model is available, but inactive  |
+| ⚪   | Unloaded  | Model is not loaded on the server |
+| 🟣   | Unmanaged | Model is remote peer (llama-swap) |
+
+> **Note**: The `Sleeping` status only shows when you start your server with `llama-server --sleep-idle-seconds <n> ...`.
+> This is a **llama.cpp server flag** that tells the server to put idle models to sleep after `n` seconds.
+> The model awakens automatically when you send a message.
+
+## Server Health Indicators
+
+When browsing servers via `/models servers`, each server URL is prefixed with a health indicator:
+
+| Icon | Status       | Description                                   |
+| ---- | ------------ | --------------------------------------------- |
+| 🟢   | Healthy      | Server responded successfully to health check |
+| 🟡   | Timeout      | Server health check timed out                 |
+| 🔴   | Unreachable  | Server could not be reached                   |
+| ⛔   | Unauthorized | Server requires an API key                    |
+
+When a server is slow or unreachable it's skipped at startup with a warning; run `/models` to retry without timeout. `/models` also shows an error notification for unreachable servers while healthy ones keep showing their models.
+
+> **Note:** You can run your server with API authentication with `llama-server --api-key <your key> ...`.
+
+## Server Modes
+
+The extension supports the following server configurations. It auto-detects the mode from the server's response.
+
+### Router mode
+
+Use this when your server runs multiple models via `--models-preset`. This is the default and most feature-rich mode.
+
+- **Setup:** `llama-server --models-preset path/to/presets.ini ...`
+- **Context size:** When loaded, reads `meta.n_ctx` from `/v1/models`; when not loaded, reads `--ctx-size` and/or `--fit-ctx` from server arguments (or presets.ini)
+- **Features:** Full model lifecycle management — load, unload, switch
+- **`/models unload`:** Available (unloads all loaded models)
+
+### Single mode
+
+Use this when your server runs a single model via `--model`.
+
+- **Setup:** `llama-server --model path/to/model.gguf ...`
+- **Context size:** Reads `meta.n_ctx` from `/v1/models`
+- **Features:** Load and switch only — unload is not available (only one model on the server)
+
+### Legacy mode
+
+Use this for servers similar to [ik_llama.cpp](https://github.com/ikawrakow/ik_llama.cpp). The extension auto-detects and handles it transparently.
+
+- **Setup:** `llama-server --model path/to/model.gguf ...`
+- **Context size**: Reads `max_model_len` from `/v1/models`, falling back to `n_ctx` from `/props`
+- **Features:** Load and switch only — unload is not available (only one model on the server)
+
+### Llama-swap mode
+
+Use this when pointing at a running [llama-swap](https://github.com/mostlygeek/llama-swap) instance instead of a raw llama.cpp server. The extension auto-detects this mode via the `src` field in the server props response.
+
+- **Setup:** `llama-swap -config path/to/llama-swap.yaml --listen <host>:<port> ...`
+- **Context size:** Reads `meta.n_ctx` from the llama-swap server via `/v1/models`. Falls back to the override or the default (128,000 tokens) for peer models, since llama-swap does not expose peer model metadata. Add a `contextSize` override if you need a specific value.
+- **Features:** Load/unload for local models, switch for peer models
+- **Peer models:** Remote models from other llama-swap instances or bare llama.cpp servers. They show with a 🟣 (unmanaged) status and only support **Switch** (no load/unload), since llama-swap does not manage their lifecycle and does not expose a way to control it.
 
 ## Configuration
 
@@ -103,8 +143,11 @@ Add this to your `.pi/settings.json` (project) or `~/.pi/agent/settings.json` (g
     "reactToModelSelect": true,
     "autoloadOnMessage": true,
     "sortBy": "asc",
+    "pollingInterval": 500,
     "pollingTimeout": 60000,
-    "serverTimeout": 1000
+    "serverTimeout": 1000,
+    "showServerUrls": true,
+    "enableSSE": true
   }
 }
 ```
@@ -259,45 +302,6 @@ For env ref formats, you can also store the variable value alongside the key usi
 
 ## Usage
 
-### Prerequisites
-
-Make sure your llama.cpp server is running with the appropriate flags.
-
-- For multi-model support (model router), start the server with:
-
-```bash
-llama-server --models-preset path/to/presets.ini ...
-```
-
-- For single-model mode, start the server with:
-
-```bash
-llama-server --model path/to/model.gguf ...
-```
-
-- For legacy-model mode (e.g., [ik_llama.cpp](https://github.com/ikawrakow/ik_llama.cpp)), the extension auto-detects and handles it transparently.
-
-> **Note:** This extension is focused on llama.cpp, not on ik_llama.cpp. Nonetheless, since I found a way to make it work with this extension, I added the option.
-
-> **Note:** The ik_llama.cpp fork is not legacy at all, but it uses an old way of describing models compared to llama.cpp.
-
-- For llama-swap mode, point the extension at a running [llama-swap](https://github.com/mostlygeek/llama-swap) instance instead of a raw llama.cpp server. The extension auto-detects this mode via the `src` field in the server props response.
-
-> **Note:** llama-swap support includes peer models — remote models from other llama-swap instances or bare llama.cpp servers. Peer models show with a 🟣 (unmanaged) status and only support **Switch** (no load/unload), since llama-swap does not manage their lifecycle and does not expose a way to control it.
-
-> **Note:** Context size for peer models falls back to the override or the default (128,000 tokens), since llama-swap does not expose peer model metadata. Add a `contextSize` override if you need a specific value.
-
-The extension determines the context size as follows:
-
-- A per-model `contextSize` override (see [Model Overrides](#model-overrides)) takes precedence over everything below
-- **Router mode**
-  - When loaded, reads `meta.n_ctx` from the `/v1/models` endpoint
-  - When not loaded, reads `--ctx-size` and/or `--fit-ctx` from the server arguments (which can also originate from the **presets.ini** file the llama.cpp server uses to load its models).
-- **Single mode** — reads `meta.n_ctx` from the `/v1/models` endpoint
-- **Legacy mode** — reads `max_model_len` from `/v1/models`, falling back to `n_ctx` from `/props`
-- **Llama-swap mode** — reads `meta.n_ctx` from the llama-swap server via `/v1/models`
-- Falls back to `128000` if not available
-
 ### Commands
 
 | Command             | Description                                                                             |
@@ -308,12 +312,6 @@ The extension determines the context size as follows:
 | `/models settings`  | Open a menu to edit the scalar `llamaSettings` fields.                                  |
 | `/models servers`   | Add, edit or remove llama.cpp server URLs via a TUI editor.                             |
 | `/models overrides` | Edit per-server model overrides (`llamaSettings.servers[].overrides`) via a TUI editor. |
-
-> **Note:** When a llama.cpp server is slow to respond, it will be skipped at startup with a warning. Run `/models` to retry without timeout and see all models.
-
-> **Note:** When a llama.cpp server is unreachable, `/models` displays an error notification with the configured server URL, but healthy servers continue to show their models.
-
-> **Note:** The `/models unload` command only makes sense in router mode.
 
 #### Model sorting
 
@@ -338,8 +336,6 @@ When browsing models via the `/models` command, you can:
 - **Retry** — Retry loading a failed model
 - **Info** — View model details (ID, capabilities, context size)
 - **Cancel** — Cancel the current operation
-
-> **Note:** In single-model and legacy-model mode, **Unload** is not available, since there is only one model on the server.
 
 > **Note:** Unload operations display progress notifications (similar to loading) so you can track the operation in real time.
 
@@ -591,13 +587,15 @@ If loading takes longer than **60 seconds** (configurable via `pollingTimeout`),
 
 ### Model Configuration
 
-Each model exposed to Pi includes the following defaults:
+Each model exposed to Pi includes the following defaults.
 
-- **`contextWindow`** — detected from llama-server (see how the extension determines the context size above); can be overridden per-model via `llamaSettings.servers[].overrides` (see [Model Overrides](#model-overrides))
-- **`maxTokens`** — dynamically set to the model's context window (detected from llama-server); can be overridden per-model via `llamaSettings.servers[].overrides` (see [Model Overrides](#model-overrides))
-- **`reasoning`** — `true` by default (llama.cpp's `/v1/models` endpoint does not expose it); can be overridden per-model via `llamaSettings.servers[].overrides` (see [Model Overrides](#model-overrides))
-- **`cost`** — all zero by default; can be customized per-model via `llamaSettings.servers[].overrides` (see [Model Overrides](#model-overrides))
-- **`compat`** — OpenAI-compatible provider compatibility settings; can be set per-model via `llamaSettings.servers[].overrides` (see [Model Overrides](#model-overrides))
+- **`contextWindow`** — detected from llama-server (see [Server Modes](#server-modes))
+- **`maxTokens`** — dynamically set to the model's context window (detected from llama-server)
+- **`reasoning`** — `true` by default (llama.cpp's `/v1/models` endpoint does not expose it)
+- **`cost`** — all zero by default
+- **`compat`** — OpenAI-compatible provider compatibility settings
+
+These can be overridden per-model via `llamaSettings.servers[].overrides` (see [Model Overrides](#model-overrides)).
 
 ## Dependencies
 
