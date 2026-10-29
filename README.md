@@ -12,6 +12,7 @@ A [Pi Coding Agent](https://pi.dev/) extension that connects to multiple [llama.
 - **Image capabilities detection** — detects multimodal models automatically
 - **Flexible configuration** — via `llamaSettings`, environment variable, or legacy `llamaServerUrl`
 - **Auth support** — login into servers secured with an API key
+- **Custom headers** — send extra HTTP headers per server (e.g. Cloudflare Access service tokens)
 - **Llama-swap support** — auto-detects and provides integration with [llama-swap](https://github.com/mostlygeek/llama-swap) gateways
 - **Thinking budget support** — configurable token budgets for model reasoning/thinking, mapped to Pi's thinking levels
 - **Real-time progress tracking** — live loading progress via SSE (falls back to polling)
@@ -137,7 +138,8 @@ Add this to your `.pi/settings.json` (project) or `~/.pi/agent/settings.json` (g
       },
       {
         "url": "http://10.0.0.5:9931",
-        "name": "Remote Server"
+        "name": "Remote Server",
+        "headers": { "X-Gateway-Key": "$GATEWAY_KEY" }
       }
     ],
     "reactToModelSelect": true,
@@ -156,13 +158,59 @@ With this config, the servers will appear in Pi as **Llama.cpp (Local Server)** 
 
 #### Server Options
 
-| Option | Type   | Required | Description                                                                  |
-| ------ | ------ | -------- | ---------------------------------------------------------------------------- |
-| `url`  | string | Yes      | The URL of the llama.cpp server                                              |
-| `id`   | string | No       | Custom provider ID (used for API key auth). Defaults to `llama-server=<url>` |
-| `name` | string | No       | Display name for the server in the UI (shown as `Llama.cpp (<name>)`)        |
+| Option    | Type   | Required | Description                                                                                      |
+| --------- | ------ | -------- | ------------------------------------------------------------------------------------------------ |
+| `url`     | string | Yes      | The URL of the llama.cpp server                                                                  |
+| `id`      | string | No       | Custom provider ID (used for API key auth). Defaults to `llama-server=<url>`                     |
+| `name`    | string | No       | Display name for the server in the UI (shown as `Llama.cpp (<name>)`)                            |
+| `headers` | object | No       | Extra HTTP headers sent with every request to the server (see [Custom headers](#custom-headers)) |
 
 > **Note:** If you set a custom `id`, you can use it in `~/.pi/agent/auth.json`. The extension will also fall back to the URL-based ID if no key is found for the custom `id`.
+
+#### Custom headers
+
+Some setups need extra HTTP headers on every request — for example a llama.cpp server protected by Cloudflare Access, which requires the headers of a service token. Add them to the server entry as `headers`. Reference variables instead of writing secrets in the settings file:
+
+```json
+{
+  "llamaSettings": {
+    "servers": [
+      {
+        "url": "https://llama.example.com",
+        "headers": {
+          "CF-Access-Client-Id": "$CF_ACCESS_CLIENT_ID",
+          "CF-Access-Client-Secret": "$CF_ACCESS_CLIENT_SECRET"
+        }
+      }
+    ]
+  }
+}
+```
+
+Then store the values in the server's credential in `~/.pi/agent/auth.json` (the same place as an [API key](#api-key)), in its `env` object:
+
+```json
+{
+  "llama-server=https://llama.example.com": {
+    "type": "api_key",
+    "key": "none",
+    "env": {
+      "CF_ACCESS_CLIENT_ID": "<client id>.access",
+      "CF_ACCESS_CLIENT_SECRET": "<client secret>"
+    }
+  }
+}
+```
+
+Unlike a project `.pi/settings.json`, which you may commit, `auth.json` is meant to stay private.
+
+The headers are sent with every request to that server: the extension's own (health checks, model listing, load/unload, SSE) and Pi's chat requests.
+
+- **Values** support the same formats as the `key` of an API key entry: a literal, `$VAR` / `${VAR}`, or `!command`. A `$VAR` is looked up in the credential's `env` first, then in the process environment. Avoid writing secrets as literals in `settings.json`.
+- **The credential** must be stored under the server's provider ID (its custom `id` if you set one, otherwise `llama-server=<url>`) and needs a `key`. If your server has no API key, any placeholder works, as shown above.
+- A header whose value can't be resolved (for example, an unset variable) is left out.
+- Custom headers take precedence over the ones the extension sets itself, including `Authorization`.
+- `headers` is only configurable in `settings.json`. The `/models servers` editor keeps them when you edit a server.
 
 #### Settings Options
 
