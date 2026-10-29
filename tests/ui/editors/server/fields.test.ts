@@ -46,6 +46,19 @@ describe("ServerFields", () => {
     expect(field.currentValue(makeServer({ name: undefined }))).toBe("");
   });
 
+  it.each([
+    ["url", "http://example:8080"],
+    ["id", "new-id"],
+    ["name", "New name"],
+  ])("should preserve custom headers when editing %s", (id, value) => {
+    const headers = { "CF-Access-Client-Id": "$CF_ID" };
+    const server = makeServer({ headers });
+
+    const updated = ServerFields.byId(id).apply(server, value);
+
+    expect(updated.headers).toEqual(headers);
+  });
+
   it("should throw for unknown field id", () => {
     expect(() => ServerFields.byId("unknown")).toThrow(
       "Unknown server field: unknown",

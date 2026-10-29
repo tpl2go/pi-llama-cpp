@@ -298,6 +298,134 @@ describe("ApiClient", () => {
     });
   });
 
+  describe("Custom headers", () => {
+    /** Helper: build an ApiClient that resolves `getHeaders` per request. */
+    const makeClientWithHeaders = (
+      fetchMock: ReturnType<typeof vi.fn>,
+      getHeaders: () => Record<string, string> | undefined,
+    ): ApiClient =>
+      new ApiClient(
+        "http://127.0.0.1:9931",
+        () => "my-key",
+        async () => 10_000,
+        fetchMock as typeof globalThis.fetch,
+        undefined,
+        getHeaders,
+      );
+
+    const okJson = async () =>
+      new Response(JSON.stringify({ data: [] }), { status: 200 });
+
+    it("sends custom headers on GET alongside the Bearer token", async () => {
+      const fetchMock = vi.fn(okJson);
+      const client = makeClientWithHeaders(fetchMock, () => ({
+        "CF-Access-Client-Id": "id.access",
+        "CF-Access-Client-Secret": "secret",
+      }));
+
+      await client.get<{ data: unknown[] }>("/v1/models");
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:9931/v1/models",
+        expect.objectContaining({
+          headers: {
+            Authorization: "Bearer my-key",
+            "CF-Access-Client-Id": "id.access",
+            "CF-Access-Client-Secret": "secret",
+          },
+        }),
+      );
+    });
+
+    it("sends custom headers on POST alongside Content-Type", async () => {
+      const fetchMock = vi.fn(okJson);
+      const client = makeClientWithHeaders(fetchMock, () => ({
+        "CF-Access-Client-Id": "id.access",
+      }));
+
+      await client.post<{ data: unknown[] }>("/models/unload", { model: "m1" });
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:9931/models/unload",
+        expect.objectContaining({
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer my-key",
+            "CF-Access-Client-Id": "id.access",
+          },
+        }),
+      );
+    });
+
+    it("sends custom headers on stream()", async () => {
+      const fetchMock = vi.fn(async () => new Response("data: {}\n"));
+      const client = makeClientWithHeaders(fetchMock, () => ({
+        "CF-Access-Client-Id": "id.access",
+      }));
+
+      await client.stream("/models/sse");
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:9931/models/sse",
+        expect.objectContaining({
+          headers: {
+            Authorization: "Bearer my-key",
+            "CF-Access-Client-Id": "id.access",
+          },
+        }),
+      );
+    });
+
+    it("lets a custom Authorization header replace the Bearer token", async () => {
+      const fetchMock = vi.fn(okJson);
+      const client = makeClientWithHeaders(fetchMock, () => ({
+        Authorization: "Basic abc",
+      }));
+
+      await client.get<{ data: unknown[] }>("/v1/models");
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:9931/v1/models",
+        expect.objectContaining({ headers: { Authorization: "Basic abc" } }),
+      );
+    });
+
+    it("sends only the Bearer token when there are no custom headers", async () => {
+      const fetchMock = vi.fn(okJson);
+      const client = makeClientWithHeaders(fetchMock, () => undefined);
+
+      await client.get<{ data: unknown[] }>("/v1/models");
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://127.0.0.1:9931/v1/models",
+        expect.objectContaining({
+          headers: { Authorization: "Bearer my-key" },
+        }),
+      );
+    });
+
+    it("resolves headers on every request", async () => {
+      const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+        okJson(),
+      );
+      let token = "first";
+      const client = makeClientWithHeaders(fetchMock, () => ({
+        "X-Token": token,
+      }));
+
+      await client.get<{ data: unknown[] }>("/v1/models");
+      token = "second";
+      await client.get<{ data: unknown[] }>("/props");
+
+      expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({
+        "X-Token": "first",
+      });
+      expect(fetchMock.mock.calls[1]?.[1]?.headers).toMatchObject({
+        "X-Token": "second",
+      });
+    });
+  });
+
   describe("Cache clearing", () => {
     it("clearCache removes all entries", async () => {
       const fetchMock = makeMockFetch({

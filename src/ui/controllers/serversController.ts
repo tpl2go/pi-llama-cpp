@@ -179,6 +179,13 @@ export class ServersController extends BaseListController {
       () => apiKey,
       this.options.resolvePollingInterval ??
         (() => Promise.resolve(serverTimeout)),
+      undefined,
+      undefined,
+      () =>
+        this.options.settings.resolveHeaders(
+          ServerIds.resolve(server.url, server.id),
+          server.headers,
+        ),
     );
 
     if (

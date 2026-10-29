@@ -1,6 +1,11 @@
 import { ModelThinkingLevel } from "@earendil-works/pi-ai";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
-import { LLAMA_SERVER_URL, SETTINGS_KEY, THINKING_BUDGETS } from "../constants";
+import {
+  API_KEY_PLACEHOLDER,
+  LLAMA_SERVER_URL,
+  SETTINGS_KEY,
+  THINKING_BUDGETS,
+} from "../constants";
 import { AutoloadOnMessageSettingsItem } from "./items/autoloadOnMessage";
 import { PollingIntervalSettingsItem } from "./items/pollingInterval";
 import { PollingTimeoutSettingsItem } from "./items/pollingTimeout";
@@ -147,6 +152,7 @@ export class SettingsReader implements ServerSettingsResolver {
         baseUrl: url,
         customId: config?.id,
         customName: config?.name,
+        headers: config?.headers,
         overrides,
       });
     }
@@ -167,6 +173,39 @@ export class SettingsReader implements ServerSettingsResolver {
     if (envKey) return envKey;
 
     return this.credentialResolver.resolveForProvider(providerId);
+  }
+
+  /**
+   * Resolves the values of a server's custom headers, using the same
+   * formats as API keys (literal, `$VAR`, `${VAR}`, `!command`).
+   *
+   * `$VAR` resolves against the `env` stored with the provider's credential
+   * in `auth.json` first, then `process.env` (the same priority Pi uses), so
+   * secrets don't have to be written in the settings file.
+   *
+   * Headers whose value can't be resolved (e.g. an unset env var) are
+   * omitted rather than sent as a placeholder. Non-string values are
+   * ignored, since the settings file is edited by hand.
+   *
+   * @param providerId - The provider ID the credential is stored under.
+   * @param headers - The headers as written in `llamaSettings.servers`.
+   * @returns The resolved headers, or `undefined` when none remain.
+   */
+  resolveHeaders(
+    providerId: string,
+    headers?: Record<string, string>,
+  ): Record<string, string> | undefined {
+    const entries = Object.entries(headers ?? {});
+    if (entries.length === 0) return undefined;
+
+    const env = this.credentialResolver.readEnv(providerId);
+    const resolved: Record<string, string> = {};
+    for (const [name, raw] of entries) {
+      if (typeof raw !== "string") continue;
+      const value = this.credentialResolver.resolve(raw, env);
+      if (value !== API_KEY_PLACEHOLDER) resolved[name] = value;
+    }
+    return Object.keys(resolved).length > 0 ? resolved : undefined;
   }
 
   /**

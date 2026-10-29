@@ -980,6 +980,186 @@ describe("resolveServerConfigs passes overrides", () => {
   });
 });
 
+describe("resolveServerConfigs passes headers", () => {
+  const mockGetAgentDir = vi.mocked(getAgentDir);
+  const mockGetProjectSettings = vi.mocked(
+    mockSettingsManager.getProjectSettings,
+  );
+  const mockGetGlobalSettings = vi.mocked(
+    mockSettingsManager.getGlobalSettings,
+  );
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetAgentDir.mockReturnValue("/fake/agent/dir");
+    mockGetProjectSettings.mockReturnValue({});
+    mockGetGlobalSettings.mockReturnValue({});
+    manager = SettingsService.create();
+  });
+
+  it("should pass the unresolved headers to ServerOptions", async () => {
+    mockGetProjectSettings.mockReturnValue({
+      llamaSettings: {
+        servers: [
+          {
+            url: "http://headers-server:9090",
+            headers: { "CF-Access-Client-Id": "$CF_ID" },
+          },
+          { url: "http://no-headers-server:9090" },
+        ],
+      },
+    });
+
+    const result = await manager.resolveServerConfigs();
+
+    expect(result).toHaveLength(2);
+    expect(result[0].headers).toEqual({ "CF-Access-Client-Id": "$CF_ID" });
+    expect(result[1].headers).toBeUndefined();
+  });
+});
+
+describe("resolveHeaders", () => {
+  const mockGetAgentDir = vi.mocked(getAgentDir);
+  const providerId = `llama-server=${defaultBaseUrl()}`;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetAgentDir.mockReturnValue("/fake/agent/dir");
+    mockReadStoredCredential.mockReturnValue(undefined);
+    manager = SettingsService.create();
+  });
+
+  afterEach(() => {
+    delete process.env.TEST_CF_ID;
+    delete process.env.TEST_CF_SECRET;
+  });
+
+  it("should return literal values as-is", () => {
+    expect(
+      manager.resolveHeaders(providerId, {
+        "CF-Access-Client-Id": "id.access",
+      }),
+    ).toEqual({ "CF-Access-Client-Id": "id.access" });
+  });
+
+  it("should resolve $VAR and ${VAR} from process.env", () => {
+    process.env.TEST_CF_ID = "env-id";
+    process.env.TEST_CF_SECRET = "env-secret";
+
+    expect(
+      manager.resolveHeaders(providerId, {
+        "CF-Access-Client-Id": "$TEST_CF_ID",
+        "CF-Access-Client-Secret": "${TEST_CF_SECRET}",
+      }),
+    ).toEqual({
+      "CF-Access-Client-Id": "env-id",
+      "CF-Access-Client-Secret": "env-secret",
+    });
+  });
+
+  it("should resolve !command values from stdout", () => {
+    expect(
+      manager.resolveHeaders(providerId, { "X-Token": "!echo cmd-token" }),
+    ).toEqual({ "X-Token": "cmd-token" });
+  });
+
+  it("should omit headers that can't be resolved", () => {
+    process.env.TEST_CF_ID = "env-id";
+
+    expect(
+      manager.resolveHeaders(providerId, {
+        "CF-Access-Client-Id": "$TEST_CF_ID",
+        "CF-Access-Client-Secret": "$TEST_CF_SECRET",
+        "X-Failing": "!exit 1",
+      }),
+    ).toEqual({ "CF-Access-Client-Id": "env-id" });
+  });
+
+  it("should ignore non-string values", () => {
+    expect(
+      manager.resolveHeaders(providerId, {
+        "X-Number": 42 as unknown as string,
+        "X-Ok": "yes",
+      }),
+    ).toEqual({ "X-Ok": "yes" });
+  });
+
+  it("should return undefined when there are no usable headers", () => {
+    expect(manager.resolveHeaders(providerId, undefined)).toBeUndefined();
+    expect(manager.resolveHeaders(providerId, {})).toBeUndefined();
+    expect(
+      manager.resolveHeaders(providerId, {
+        "CF-Access-Client-Secret": "$TEST_CF_SECRET",
+      }),
+    ).toBeUndefined();
+  });
+
+  describe("with an env stored in auth.json", () => {
+    const headers = {
+      "CF-Access-Client-Id": "$TEST_CF_ID",
+      "CF-Access-Client-Secret": "${TEST_CF_SECRET}",
+    };
+
+    it("should resolve $VAR and ${VAR} from the credential env", () => {
+      mockReadStoredCredential.mockReturnValue({
+        type: "api_key",
+        key: "sk-abc",
+        env: { TEST_CF_ID: "stored-id", TEST_CF_SECRET: "stored-secret" },
+      });
+
+      expect(manager.resolveHeaders(providerId, headers)).toEqual({
+        "CF-Access-Client-Id": "stored-id",
+        "CF-Access-Client-Secret": "stored-secret",
+      });
+      expect(mockReadStoredCredential).toHaveBeenCalledWith(providerId);
+    });
+
+    it("should work for a credential that has no key", () => {
+      mockReadStoredCredential.mockReturnValue({
+        type: "api_key",
+        env: { TEST_CF_ID: "stored-id", TEST_CF_SECRET: "stored-secret" },
+      });
+
+      expect(manager.resolveHeaders(providerId, headers)).toEqual({
+        "CF-Access-Client-Id": "stored-id",
+        "CF-Access-Client-Secret": "stored-secret",
+      });
+    });
+
+    it("should prefer the credential env over process.env", () => {
+      process.env.TEST_CF_ID = "process-id";
+      mockReadStoredCredential.mockReturnValue({
+        type: "api_key",
+        env: { TEST_CF_ID: "stored-id", TEST_CF_SECRET: "stored-secret" },
+      });
+
+      expect(manager.resolveHeaders(providerId, headers)).toMatchObject({
+        "CF-Access-Client-Id": "stored-id",
+      });
+    });
+
+    it("should fall back to process.env for vars not in the credential env", () => {
+      process.env.TEST_CF_SECRET = "process-secret";
+      mockReadStoredCredential.mockReturnValue({
+        type: "api_key",
+        env: { TEST_CF_ID: "stored-id" },
+      });
+
+      expect(manager.resolveHeaders(providerId, headers)).toEqual({
+        "CF-Access-Client-Id": "stored-id",
+        "CF-Access-Client-Secret": "process-secret",
+      });
+    });
+
+    it("should not read the credential store when there are no headers", () => {
+      manager.resolveHeaders(providerId, undefined);
+      manager.resolveHeaders(providerId, {});
+
+      expect(mockReadStoredCredential).not.toHaveBeenCalled();
+    });
+  });
+});
+
 describe("Server.findOverrideForModel", () => {
   function createServer(
     overrides: Record<string, ModelOverride>,

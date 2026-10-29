@@ -68,6 +68,9 @@ export class ApiClient {
    * @param ttlRatio Fraction of the polling interval used as cache TTL
    *   (default: 0.8). A higher value keeps cache longer; a lower value
    *   refreshes more aggressively.
+   * @param getHeaders Resolves extra headers (e.g. a Cloudflare Access
+   *   service token) at request time. They are sent with every request and
+   *   take precedence over the headers set here, including `Authorization`.
    */
   constructor(
     private readonly baseUrl: string,
@@ -76,6 +79,8 @@ export class ApiClient {
       PollingIntervalSettingsItem.defaultValue,
     private readonly fetchFn: typeof globalThis.fetch = fetch,
     private readonly ttlRatio: number = 0.8,
+    private readonly getHeaders: () =>
+      Record<string, string> | undefined = () => undefined,
   ) {}
 
   /**
@@ -96,7 +101,10 @@ export class ApiClient {
       : `${this.baseUrl}${endpoint.startsWith("/") ? "" : "/"}${endpoint}`;
     const response = await this.fetchFn(url, {
       method: "GET",
-      headers: { Authorization: `Bearer ${this.getApiKey()}` },
+      headers: {
+        Authorization: `Bearer ${this.getApiKey()}`,
+        ...this.getHeaders(),
+      },
       signal,
     });
 
@@ -327,6 +335,7 @@ export class ApiClient {
           ? { "Content-Type": "application/json" }
           : undefined),
         Authorization: `Bearer ${this.getApiKey()}`,
+        ...this.getHeaders(),
       },
       ...(body ? { body: JSON.stringify(body) } : undefined),
     });

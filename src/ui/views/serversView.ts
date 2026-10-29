@@ -103,6 +103,13 @@ export class ServersView extends View implements ServersViewHandle {
           () => apiKey,
           this.controller.options.resolvePollingInterval ??
             (() => Promise.resolve(ServerTimeoutSettingsItem.defaultValue)),
+          undefined,
+          undefined,
+          () =>
+            this.controller.options.settings.resolveHeaders(
+              ServerIds.resolve(server.url, server.id),
+              server.headers,
+            ),
         );
         return ServerDisplay.healthEmoji(client, serverTimeout);
       }),

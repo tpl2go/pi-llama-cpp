@@ -24,6 +24,16 @@ export interface ServerSettingsResolver {
    */
   resolveApiKey(providerId: string): string;
   /**
+   * Resolves the values of a server's custom headers (literal, `$VAR` or
+   * `!command`). `$VAR` resolves against the `env` stored with the
+   * provider's credential first, then `process.env`. Headers that can't be
+   * resolved are left out; returns `undefined` when none remain.
+   */
+  resolveHeaders(
+    providerId: string,
+    headers?: Record<string, string>,
+  ): Record<string, string> | undefined;
+  /**
    * Resolves whether SSE is enabled for model loading.
    */
   resolveEnableSSE(): Promise<boolean>;
@@ -48,6 +58,12 @@ export interface ServerOptions {
    * Custom provider name suffix; falls back to the base URL.
    */
   customName?: string;
+  /**
+   * Custom HTTP headers from `llamaSettings.servers`, as written in the
+   * settings (unresolved). Resolve them with
+   * {@link ServerSettingsResolver.resolveHeaders}.
+   */
+  headers?: Record<string, string>;
   /**
    * Per-model overrides resolved from `llamaSettings.servers`. See
    * {@link ModelOverride} for the fallback semantics of each field.

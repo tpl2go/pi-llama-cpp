@@ -452,6 +452,7 @@ describe("Server pollModelStatus timeout", () => {
         resolvePollingInterval: vi.fn(async () => 5),
         resolvePollingTimeout: vi.fn(async () => 10),
         resolveApiKey: vi.fn(() => "test-key"),
+        resolveHeaders: vi.fn(() => undefined),
         resolveEnableSSE: vi.fn(async () => true),
       },
     });

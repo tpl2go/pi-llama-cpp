@@ -70,6 +70,20 @@ export interface LlamaServer {
    */
   name?: string;
   /**
+   * Extra HTTP headers sent with every request to this server (e.g. the
+   * `CF-Access-Client-Id` / `CF-Access-Client-Secret` pair of a Cloudflare
+   * Access service token). Values accept the same formats as the `key` of
+   * an `auth.json` entry: a literal, `$VAR` / `${VAR}`, or `!command`.
+   * `$VAR` resolves against the `env` stored with this server's `auth.json`
+   * credential first, then `process.env` — keep secrets there rather than
+   * writing them in the settings file. Headers whose value can't be
+   * resolved are omitted.
+   *
+   * These take precedence over the headers the extension sets itself,
+   * including `Authorization`.
+   */
+  headers?: Record<string, string>;
+  /**
    * Per-model overrides for this server. Keys are **prefix filters** —
    * a model ID matches if it starts with the key. When multiple patterns
    * match, the **longest (most specific) match wins**.
