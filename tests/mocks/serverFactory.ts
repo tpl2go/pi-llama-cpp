@@ -28,6 +28,7 @@ export const createSeededServerFactory = (
         baseUrl: options.baseUrl,
         customId: options.customId,
         customName: options.customName,
+        headers: options.headers,
         overrides: options.overrides,
       },
       models: models[options.baseUrl],

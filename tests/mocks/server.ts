@@ -88,6 +88,7 @@ export const createMockServer = (
       baseUrl: options?.baseUrl ?? defaultBaseUrl(),
       customId: options?.customId,
       customName: options?.customName,
+      headers: options?.headers,
       overrides: options?.overrides,
     },
     apiClient,

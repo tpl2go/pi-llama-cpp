@@ -79,6 +79,35 @@ describe("ServerManager", () => {
     );
   });
 
+  it("should register the resolved custom headers with the provider", async () => {
+    const mockModel = createMockModel("test-model", {
+      toProviderConfig: vi.fn().mockResolvedValue({ id: "test-model" }),
+    });
+    const headers = { "CF-Access-Client-Id": "$CF_ID" };
+    vi.mocked(settingsStub.resolveHeaders).mockImplementation((_id, h) =>
+      h ? { "CF-Access-Client-Id": "resolved-id" } : undefined,
+    );
+    const manager = new ServerManager(
+      settingsStub,
+      createSeededServerFactory({ "http://127.0.0.1:9931": [mockModel] }),
+    );
+    vi.mocked(settingsStub.resolveServerConfigs).mockResolvedValue([
+      configOf("http://127.0.0.1:9931", { headers }),
+    ]);
+    await manager.update(mockPi);
+
+    expect(settingsStub.resolveHeaders).toHaveBeenCalledWith(
+      "llama-server=http://127.0.0.1:9931",
+      headers,
+    );
+    expect(mockPi.registerProvider).toHaveBeenCalledWith(
+      "llama-server=http://127.0.0.1:9931",
+      expect.objectContaining({
+        headers: { "CF-Access-Client-Id": "resolved-id" },
+      }),
+    );
+  });
+
   it("should return all models from all servers", async () => {
     const manager = new ServerManager(
       settingsStub,
