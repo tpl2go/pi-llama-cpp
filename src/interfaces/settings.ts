@@ -70,10 +70,11 @@ export interface LlamaServer {
    */
   name?: string;
   /**
-   * Extra HTTP headers sent with every request to this server (e.g. the
-   * `CF-Access-Client-Id` / `CF-Access-Client-Secret` pair of a Cloudflare
-   * Access service token). Values accept the same formats as the `key` of
-   * an `auth.json` entry: a literal, `$VAR` / `${VAR}`, or `!command`.
+   * Extra HTTP headers sent with every request to this server, e.g. the
+   * credentials required by a reverse proxy or access gateway in front of it
+   * (such as the `CF-Access-Client-Id` / `CF-Access-Client-Secret` pair of a
+   * Cloudflare Access service token). Values accept the same formats as the
+   * `key` of an `auth.json` entry: a literal, `$VAR` / `${VAR}`, or `!command`.
    * `$VAR` resolves against the `env` stored with this server's `auth.json`
    * credential first, then `process.env` — keep secrets there rather than
    * writing them in the settings file. Headers whose value can't be
